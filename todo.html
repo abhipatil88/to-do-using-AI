@@ -1,0 +1,224 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-Powered To-Do List</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 50px;
+        line-height: 1.6;
+      }
+
+      input {
+        padding: 10px;
+        width: 250px;
+        margin-right: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      button {
+        padding: 10px 15px;
+        cursor: pointer;
+        border: none;
+        color: #fff;
+        border-radius: 5px;
+      }
+
+      .btn-add {
+        background: #4caf50;
+      }
+
+      .btn-save {
+        background: #2196f3;
+      }
+
+      .btn-edit {
+        background: #f0ad4e;
+      }
+
+      .btn-delete {
+        background: #d9534f;
+      }
+
+      ol {
+        list-style: none;
+        padding: 0;
+      }
+
+      li {
+        background: #f4f4f4;
+        margin: 8px 0;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 5px;
+      }
+
+      .task-content {
+        flex: 1;
+      }
+
+      .btn-group {
+        display: flex;
+        gap: 5px;
+      }
+
+      .edit-input {
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        width: 70%;
+      }
+
+      .btn-save-edit {
+        background: #5bc0de;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>AI-Powered To-Do List</h2>
+
+    <input id="input" type="text" placeholder="Enter task..." />
+    <button class="btn-add" onclick="getTasksFromGroq()">Add</button>
+    <button class="btn-save" onclick="saveTasks()">Save</button>
+
+    <ol id="list"></ol>
+
+    <script>
+      const input = document.getElementById("input");
+      const list = document.getElementById("list");
+
+      // ✅ Fetch Tasks from GenAI
+      async function getTasksFromGroq() {
+        if (!input.value.trim()) {
+          alert("Please enter a task!");
+          return;
+        }
+
+        const response = await fetch(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization:
+                "Bearer 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",
+            },
+            body: JSON.stringify({
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "You are task creator who generates array of string for task based on user query\nExample - User asks - I want to learn javascript\nresult - { 'tasks': ['Learn basic of variable', 'control flows', 'so on']} in json\n",
+                },
+                { role: "user", content: input.value },
+              ],
+              model: "llama-3.3-70b-versatile",
+              temperature: 1,
+              max_completion_tokens: 1024,
+              top_p: 1,
+              stream: false,
+              response_format: { type: "json_object" },
+              stop: null,
+            }),
+          }
+        );
+
+        const body = await response.json();
+        console.log(body.choices[0].message.content);
+
+        const tasks = JSON.parse(body.choices[0].message.content).tasks;
+
+        tasks.forEach((task) => {
+          addTask(task);
+        });
+
+        input.value = "";
+      }
+
+      // ✅ Add Task to List
+      function addTask(taskText) {
+        const newLi = document.createElement("li");
+
+        newLi.innerHTML = `
+          <span class="task-content">${taskText}</span>
+          <div class="btn-group">
+            <button class="btn-edit" onclick="editTask(this)">Edit</button>
+            <button class="btn-delete" onclick="deleteTask(this)">Delete</button>
+          </div>
+        `;
+
+        list.appendChild(newLi);
+      }
+
+      // ✅ Delete Task
+      function deleteTask(button) {
+        button.parentElement.parentElement.remove();
+      }
+
+      // ✅ Edit Task Without Cookies
+      function editTask(button) {
+        const taskElement = button.parentElement.previousElementSibling;
+        const currentText = taskElement.textContent;
+
+        const editContainer = document.createElement("div");
+        editContainer.innerHTML = `
+          <input type="text" class="edit-input" value="${currentText}" />
+          <button class="btn-save-edit" onclick="saveEditedTask(this)">Save</button>
+        `;
+
+        // Replace task content with editable input
+        taskElement.replaceWith(editContainer);
+      }
+
+      // ✅ Save Edited Task
+      function saveEditedTask(button) {
+        const editContainer = button.parentElement;
+        const newText = editContainer.querySelector(".edit-input").value.trim();
+
+        if (newText) {
+          const taskContent = document.createElement("span");
+          taskContent.classList.add("task-content");
+          taskContent.textContent = newText;
+
+          const btnGroup = document.createElement("div");
+          btnGroup.classList.add("btn-group");
+          btnGroup.innerHTML = `
+            <button class="btn-edit" onclick="editTask(this)">Edit</button>
+            <button class="btn-delete" onclick="deleteTask(this)">Delete</button>
+          `;
+
+          const li = editContainer.parentElement;
+          li.innerHTML = "";  // Clear the existing content
+          li.appendChild(taskContent);
+          li.appendChild(btnGroup);
+        } else {
+          alert("Task cannot be empty!");
+        }
+      }
+
+      // ✅ Save Tasks as Text File
+      function saveTasks() {
+        const tasks = [];
+        document.querySelectorAll(".task-content").forEach((item) => {
+          tasks.push(item.textContent);
+        });
+
+        if (tasks.length === 0) {
+          alert("No tasks to save!");
+          return;
+        }
+
+        const blob = new Blob([tasks.join("\n")], { type: "text/plain" });
+        const anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(blob);
+        anchor.download = "todo-list.txt";
+        anchor.click();
+      }
+    </script>
+  </body>
+</html>
